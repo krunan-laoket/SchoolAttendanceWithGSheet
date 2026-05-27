@@ -1,0 +1,6 @@
+{
+  "name": "Primary School Attendance System",
+  "description": "ระบบเช็กชื่อโรงเรียนประถมแบบใช้งานจริง เชื่อมต่อฐานข้อมูล Google Sheets นำไปใช้อ่าน-เขียนข้อมูลรายวันของนักเรียนได้อย่างสะดวกรวดเร็ว",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
