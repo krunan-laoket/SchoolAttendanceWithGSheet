@@ -429,7 +429,7 @@ export const dbService = {
     saveToStorage(STORAGE_KEYS.STUDENTS, students);
     saveToStorage(STORAGE_KEYS.SECTIONS, sections);
 
-    addLog('CREATE', 'Students', `เพิ่มนักเรียนใหม่ลงทะเบียนเรียน: ${fullStu.student_id} - ด.ช./ด.ญ. ${fullStu.first_name} ${fullStu.last_name}`);
+    addLog('CREATE', 'Students', `เพิ่มนักเรียนใหม่ลงทะเบียนเรียน: ${fullStu.student_id} - ${fullStu.first_name} ${fullStu.last_name}`);
 
     // Sync child register live to Google Sheets
     const sheetsUrl = getSheetsUrl();
@@ -562,7 +562,7 @@ export const dbService = {
     saveToStorage(STORAGE_KEYS.STUDENTS, students);
     saveToStorage(STORAGE_KEYS.ATTENDANCE, attendance);
 
-    addLog('UPDATE', 'Attendance', `เช็กสถานะ [${status}] ของ ด.ช./ด.ญ. ${students[studentIdx].first_name} เรียนอยู่ชั้น ${sections.find(s => s.section_id === sectionId)?.section_name}`);
+    addLog('UPDATE', 'Attendance', `เช็กสถานะ [${status}] ของ ${students[studentIdx].first_name} เรียนอยู่ชั้น ${sections.find(s => s.section_id === sectionId)?.section_name}`);
 
     // Sync to Google Sheets if configured
     const sheetsUrl = getSheetsUrl();

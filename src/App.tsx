@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   initDB,
   dbService,
@@ -24,13 +24,14 @@ import {
   ChevronRight,
   PlusCircle,
   TrendingUp,
-  FileText
+  FileText,
+  Link2,
+  AlertCircle,
+  RefreshCw,
+  Menu,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, db, isFirebaseConfigured } from './firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-
 // Subcomponents
 import Toast, { ToastMessage } from './components/Toast';
 import SheetsIntegrationPanel from './components/SheetsIntegrationPanel';
@@ -39,11 +40,20 @@ import RosterView from './components/RosterView';
 import StudentDetailModal from './components/StudentDetailModal';
 import SectionManager from './components/SectionManager';
 import ReportView from './components/ReportView';
-import LoginScreen from './components/LoginScreen';
+import ConfirmModal from './components/ConfirmModal';
 
 export default function App() {
+  const initialLoadRef = useRef(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'roster' | 'sections' | 'reports' | 'sheets' | 'settings'>('dashboard');
-  const [selectedDate, setSelectedDate] = useState<string>('2026-05-26'); 
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    // Default to today's date in local time YYYY-MM-DD
+    const d = new Date();
+    const offset = d.getTimezoneOffset();
+    const localDate = new Date(d.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+  }); 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   // Core sheets state
@@ -60,87 +70,13 @@ export default function App() {
   // Toast State
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Firebase Auth State
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [syncingFirestore, setSyncingFirestore] = useState(false);
+  // First-time Url Prompt State
+  const [showUrlPrompt, setShowUrlPrompt] = useState(false);
+  const [promptUrlInput, setPromptUrlInput] = useState('');
+  const [promptSyncing, setPromptSyncing] = useState(false);
+  const [promptError, setPromptError] = useState('');
 
-  const currentUser = user 
-    ? (user.displayName || user.email || 'คุณครูประจำชั้น') 
-    : 'ครูประจำชั้น (โหมดไม่ได้ลงชื่อ)';
-
-  // Listen for Auth changes
-  useEffect(() => {
-    if (!isFirebaseConfigured) {
-      setUser(null);
-      setAuthLoading(false);
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      setAuthLoading(false);
-      
-      if (firebaseUser) {
-        setSyncingFirestore(true);
-        try {
-          const docRef = doc(db, 'users', firebaseUser.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            const cloudUrl = data.sheetsUrl || '';
-            const localUrl = dbService.getSheetsUrl();
-            
-            if (cloudUrl && cloudUrl !== localUrl) {
-              dbService.setSheetsUrl(cloudUrl);
-              refreshAllData();
-              addToast(`📥 โหลดลิงก์ Google Sheets บัญชีผู้ใช้จากคลาวด์เสร็จสิ้น`, 'success');
-            }
-          } else {
-            // Migrating local to cloud
-            const localUrl = dbService.getSheetsUrl();
-            if (localUrl) {
-              await setDoc(docRef, { sheetsUrl: localUrl });
-              addToast('📤 บันทึกลิงก์ Google Sheets ปัจจุบันเข้าสู่บัญชีคลาวด์ของคุณอัตโนมัติแล้ว', 'success');
-            }
-          }
-        } catch (err: any) {
-          console.error("Firestore loading error:", err);
-          addToast("ซิงค์ลิงก์แผ่นงานจากคลาวด์ไม่สำเร็จ", "error");
-        } finally {
-          setSyncingFirestore(false);
-        }
-      }
-    });
-    
-    return () => unsubscribe();
-  }, []);
-
-  const handleSignIn = async () => {
-    setAuthLoading(true);
-    const provider = new GoogleAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, provider);
-      addToast(`ลงชื่อเข้าใช้สำเร็จ! ยินดีต้อนรับ ${result.user.displayName || 'คุณครู'}`, 'success');
-    } catch (err: any) {
-      console.error(err);
-      addToast(`ลงชื่อเข้าใช้ไม่สำเร็จ: ${err.message}`, 'error');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      dbService.setSheetsUrl(''); // Reset local sheets URL on sign out to clear user data path
-      refreshAllData();
-      addToast('ออกจากระบบคลาวด์สำเร็จ รีเซ็ตสู่โหมดจำลอง Sandbox ท้องถิ่น', 'info');
-    } catch (err: any) {
-      addToast(`ไม่สามารถออกจากระบบ: ${err.message}`, 'error');
-    }
-  };
+  const currentUser = 'ครูประจำชั้น';
 
   // Local settings update form state
   const [schoolNameInput, setSchoolNameInput] = useState('');
@@ -171,6 +107,9 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (initialLoadRef.current) return;
+    initialLoadRef.current = true;
+
     const sheetsUrl = dbService.getSheetsUrl();
     if (sheetsUrl) {
       addToast('🔄 กำลังระดมประมวลผลและประสานข้อมูลสถิติจาก Google Sheets ของคุณล่าสุด...', 'info');
@@ -187,6 +126,7 @@ export default function App() {
       });
     } else {
       refreshAllData();
+      setShowUrlPrompt(true);
     }
   }, []);
 
@@ -238,15 +178,12 @@ export default function App() {
     }
   };
 
-  const handleResetAppToDefault = async () => {
-    const isLive = !!dbService.getSheetsUrl();
-    const isConfirmed = window.confirm(
-      isLive 
-        ? '⚠️ คุณครูตรวจพบตัวเชื่อม Google Sheets สด! คุณแน่ใจใช่หรือไม่ที่จะย้อนคืนฐานข้อมูลระบบและเขียนทับสร้างตารางพร้อมข้อมูลเด็กนักเรียนตั้งต้นลงในหน้า Google Sheets ของท่านด้วย? ข้อมูลเดิมในแต่ละชีตจะถูกเขียนเพื่อล้างและเริ่มต้นใหม่'
-        : '⚠️ คุณครูแน่ใจใช่หรือไม่ที่จะรีเซ็ตล้างแผ่นงานข้อมูล (Reset Sheets) กลับสู่ค่าจำลองจากโรงเรียนเริ่มต้นเดิม? ประวัติการเช็กที่บันทึกใหม่ทั้งหมดจะสูญหายถาวร'
-    );
-    if (!isConfirmed) return;
+  const handleResetAppToDefault = () => {
+    setShowResetConfirm(true);
+  };
 
+  const confirmResetAppToDefault = async () => {
+    setShowResetConfirm(false);
     setResettingDB(true);
     addToast('🔄 กำลังเชื่อมต่อเพื่อเคลียร์ฐานข้อมูลประวัติและล้างสร้างตารางเริ่มแรกบน Google Sheets สักครู่...', 'info');
     try {
@@ -265,42 +202,38 @@ export default function App() {
     ? students.find(s => s.student_id === selectedStudent.student_id) || selectedStudent
     : null;
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-natural-bg flex flex-col items-center justify-center font-sans antialiased text-natural-text relative overflow-hidden">
-        {/* Background Decorative Accent Gradients */}
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-natural-primary/5 blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] rounded-full bg-natural-primary/8 blur-[100px] pointer-events-none" />
-
-        <div className="flex flex-col items-center gap-4 text-center z-10">
-          <div className="p-4 bg-natural-sidebar rounded-3xl animate-pulse border border-natural-border shadow-xs flex items-center justify-center">
-            <GraduationCap className="w-10 h-10 text-natural-primary" />
+  return (
+    <div className="min-h-screen bg-natural-bg flex flex-col lg:flex-row scroll-smooth font-sans antialiased text-natural-text print:bg-white pb-24 lg:pb-10">
+      
+      {/* Mobile Top Header Bar */}
+      <div className="flex lg:hidden sticky top-0 z-40 bg-natural-sidebar/95 backdrop-blur-md px-4 py-3 justify-between items-center border-b border-natural-border-dark shadow-xs print:hidden">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-natural-primary rounded-lg text-white flex items-center justify-center">
+            <GraduationCap className="w-4.5 h-4.5" />
           </div>
-          <div className="space-y-1">
-            <div className="h-1.5 w-16 bg-natural-primary/35 rounded-full animate-bounce mx-auto mb-2" />
-            <p className="text-xs font-black text-natural-primary uppercase tracking-widest text-[10px] font-display">Baan Pratom Portal</p>
-            <p className="text-3xs text-natural-text-light font-bold">กำลังเตรียมระบบเชื่อมโยงฐานข้อมูลแผ่นงานสักครู่...</p>
+          <div>
+            <h1 className="font-extrabold text-xs text-natural-text tracking-wide font-display leading-tight">ระบบเช็กชื่อนักเรียนประถม</h1>
+            <span className="text-[10px] text-natural-text-light font-bold truncate max-w-[150px] block leading-none mt-0.5">
+              {settings.school_name || 'โรงเรียนประถม'}
+            </span>
           </div>
         </div>
+        
+        {/* Quick Sync & Date Indicators */}
+        <div className="flex items-center gap-2">
+          {dbService.getSheetsUrl() ? (
+            <span className="inline-flex w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="LIVE Connected" />
+          ) : (
+            <span className="inline-flex w-2 h-2 rounded-full bg-amber-400" title="Sandbox" />
+          )}
+          <span className="text-[10px] font-mono font-bold bg-[#EDEBE4] px-2 py-0.5 rounded-md text-natural-text border border-natural-border-dark">
+            {selectedDate.split('-').reverse().slice(0, 2).join('/')}
+          </span>
+        </div>
       </div>
-    );
-  }
 
-  if (isFirebaseConfigured && !user) {
-    return (
-      <>
-        <LoginScreen onSignIn={handleSignIn} authLoading={authLoading} />
-        {/* Global Toast Monitor alerts */}
-        <Toast toasts={toasts} removeToast={removeToast} />
-      </>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-natural-bg flex flex-col lg:flex-row scroll-smooth font-sans antialiased text-natural-text print:bg-white pb-10">
-      
       {/* Sidebar Navigation */}
-      <aside className="w-full lg:w-72 bg-natural-sidebar text-natural-text flex-shrink-0 flex flex-col justify-between border-r border-natural-border-dark print:hidden shadow-xs">
+      <aside className="hidden lg:flex lg:w-72 bg-natural-sidebar text-natural-text flex-shrink-0 flex-col justify-between border-r border-natural-border-dark print:hidden shadow-xs">
         <div className="flex flex-col">
           {/* Header Identity */}
           <div className="p-6 border-b border-natural-border-dark flex items-center gap-3">
@@ -308,7 +241,7 @@ export default function App() {
               <GraduationCap className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="font-extrabold text-sm text-natural-text tracking-wide font-display">Baan Pratom Portal</h1>
+              <h1 className="font-extrabold text-sm text-natural-text tracking-wide font-display">ระบบเช็กชื่อนักเรียนประถม</h1>
               <span className="text-3s text-natural-primary font-bold uppercase tracking-widest text-[10px] block mt-0.5">
                 Google Sheets Database
               </span>
@@ -400,44 +333,29 @@ export default function App() {
         {/* User context footer */}
         <div className="p-4 border-t border-natural-border-dark m-4 rounded-xl bg-natural-primary/5 text-xs space-y-3">
           <div>
-            <div className="text-natural-text-light mb-1 font-semibold uppercase tracking-wider text-[10px]">ชื่อล็อกอินผู้ใช้งาน</div>
+            <div className="text-natural-text-light mb-1 font-semibold uppercase tracking-wider text-[10px]">สถานะการทำงาน</div>
             <div className="flex items-center gap-2">
-              {user?.photoURL ? (
-                <img src={user.photoURL} alt="User Avatar" className="w-6 h-6 rounded-full border border-natural-border" referrerPolicy="no-referrer" />
-              ) : (
-                <div className="w-6 h-6 rounded-full bg-natural-primary text-white flex items-center justify-center font-bold text-3xs">
-                  {currentUser.substring(0, 1)}
-                </div>
-              )}
+              <div className="w-6 h-6 rounded-full bg-natural-primary text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                ครู
+              </div>
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-natural-text text-xs truncate" title={currentUser}>{currentUser}</p>
-                {user && <p className="text-[10px] text-emerald-600 font-semibold">● Cloud Sync Active</p>}
+                {dbService.getSheetsUrl() ? (
+                  <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    เชื่อมต่อ Sheets แล้ว
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    โหมด Sandbox จำลอง
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5 pt-1">
-            {user ? (
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center gap-2 justify-center py-2 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 text-2xs font-extrabold transition cursor-pointer"
-              >
-                <span>ออกจากระบบ Cloud</span>
-              </button>
-            ) : isFirebaseConfigured ? (
-              <button
-                onClick={handleSignIn}
-                disabled={authLoading}
-                className="w-full flex items-center gap-2 justify-center py-2 rounded-lg bg-natural-primary text-white text-2xs font-extrabold transition cursor-pointer hover:bg-natural-primary/95 shadow-xs disabled:opacity-50"
-              >
-                <span>🔑 ลงชื่อเข้าใช้ (Google Cloud Sync)</span>
-              </button>
-            ) : (
-              <div className="text-[10px] text-slate-500 font-semibold bg-slate-100 py-1.5 px-2 rounded-lg text-center">
-                🏠 โหมดแซนด์บอกซ์ท้องถิ่น
-              </div>
-            )}
-
             <button
               onClick={() => setActiveTab('settings')}
               className={`w-full flex items-center gap-2 justify-center py-2 rounded-lg border text-2xs font-extrabold transition cursor-pointer ${
@@ -546,7 +464,6 @@ export default function App() {
                 <SheetsIntegrationPanel
                   onAddToast={addToast}
                   onRefreshAllData={refreshAllData}
-                  user={user}
                 />
               )}
 
@@ -697,6 +614,345 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* First-time Apps Script URL configuration prompt */}
+      <AnimatePresence>
+        {showUrlPrompt && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white rounded-2xl border border-slate-100 shadow-xl p-6 max-w-md w-full font-sans text-natural-text relative overflow-hidden"
+            >
+              <div className="text-center space-y-2 mb-6">
+                <div className="mx-auto w-12 h-12 bg-natural-primary/10 rounded-full flex items-center justify-center text-natural-primary mb-1">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <h3 className="font-black text-lg text-slate-800 tracking-tight">เริ่มต้นใช้งานระบบ</h3>
+                <p className="text-xs text-slate-400">
+                  เชื่อมต่อฐานข้อมูล Google Sheets เพื่อทำงานแบบคลาวด์ หรือเลือกโหมดจำลองทดลองใช้งานก่อนได้
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                      <Link2 className="w-3.5 h-3.5 text-natural-primary" />
+                      ลิงก์ Google Apps Script URL:
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    value={promptUrlInput}
+                    onChange={(e) => {
+                      setPromptUrlInput(e.target.value);
+                      if (promptError) setPromptError('');
+                    }}
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 bg-slate-50 focus:outline-none focus:border-natural-primary focus:bg-white transition"
+                  />
+                  {promptError && (
+                    <p className="text-2xs text-rose-500 font-bold flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{promptError}</span>
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={promptSyncing}
+                    onClick={async () => {
+                      const trimmed = promptUrlInput.trim();
+                      if (!trimmed) {
+                        setPromptError('กรุณากรอกลิงก์ Web App URL');
+                        return;
+                      }
+                      if (!trimmed.startsWith('https://script.google.com/')) {
+                        setPromptError('ลิงก์ต้องขึ้นต้นด้วย https://script.google.com/');
+                        return;
+                      }
+
+                      setPromptSyncing(true);
+                      setPromptError('');
+                      addToast('กำลังซิงค์เชื่อมโยง Google Sheets...', 'info');
+
+                      try {
+                        const res = await dbService.syncFromSheets(trimmed);
+                        if (res.success) {
+                          dbService.setSheetsUrl(trimmed);
+                          refreshAllData();
+                          setShowUrlPrompt(false);
+                          addToast('เชื่อมโยงดึงข้อมูลนักเรียนสำเร็จ!', 'success');
+                        } else {
+                          setPromptError(res.message);
+                          addToast(`ซิงค์ข้อมูลไม่สำเร็จ: ${res.message}`, 'error');
+                        }
+                      } catch (err: any) {
+                        const msg = err.message || 'การเชื่อมต่อผิดพลาด';
+                        setPromptError(msg);
+                        addToast(`ซิงค์ชีตล้มเหลว: ${msg}`, 'error');
+                      } finally {
+                        setPromptSyncing(false);
+                      }
+                    }}
+                    className="w-full py-3 text-xs font-bold bg-[#2C2A29] hover:bg-slate-800 text-white rounded-xl transition cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {promptSyncing ? (
+                      <>
+                        <RefreshCw className="w-4.5 h-4.5 animate-spin" />
+                        <span>กำลังซิงค์ข้อมูล...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4.5 h-4.5" />
+                        <span>เชื่อมโยงและซิงค์ข้อมูล</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={promptSyncing}
+                    onClick={() => {
+                      setShowUrlPrompt(false);
+                      addToast('ใช้งานโหมดทดลองออฟไลน์ Sandbox เรียบร้อย', 'info');
+                    }}
+                    className="w-full py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-xl transition cursor-pointer border border-transparent hover:border-slate-100 text-center"
+                  >
+                    ใช้งานแบบจำลอง (Sandbox Mode)
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="flex lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-natural-border-dark z-40 items-center justify-around py-2 px-1 pb-safe-bottom shadow-lg print:hidden">
+        <button
+          onClick={() => {
+            setActiveTab('dashboard');
+            setShowMobileMenu(false);
+          }}
+          className={`flex flex-col items-center gap-1 flex-1 py-1 px-2.5 transition rounded-lg ${
+            activeTab === 'dashboard' ? 'text-natural-primary font-boldScale' : 'text-natural-text-light hover:text-natural-text'
+          }`}
+          style={{ color: activeTab === 'dashboard' ? 'var(--color-natural-primary)' : 'var(--color-natural-text-light)' }}
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight truncate font-bold">ภาพรวม</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('roster');
+            setShowMobileMenu(false);
+          }}
+          className={`flex flex-col items-center gap-1 flex-1 py-1 px-2.5 transition rounded-lg ${
+            activeTab === 'roster' ? 'text-natural-primary font-boldScale' : 'text-natural-text-light hover:text-natural-text'
+          }`}
+          style={{ color: activeTab === 'roster' ? 'var(--color-natural-primary)' : 'var(--color-natural-text-light)' }}
+        >
+          <Calendar className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight truncate font-bold">เช็กชื่อ</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('reports');
+            setShowMobileMenu(false);
+          }}
+          className={`flex flex-col items-center gap-1 flex-1 py-1 px-2.5 transition rounded-lg ${
+            activeTab === 'reports' ? 'text-natural-primary font-boldScale' : 'text-natural-text-light hover:text-natural-text'
+          }`}
+          style={{ color: activeTab === 'reports' ? 'var(--color-natural-primary)' : 'var(--color-natural-text-light)' }}
+        >
+          <FileText className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight truncate font-bold">สถิติรายงาน</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setShowMobileMenu(!showMobileMenu);
+          }}
+          className={`flex flex-col items-center gap-1 flex-1 py-1 px-2.5 transition rounded-lg relative ${
+            showMobileMenu || ['sections', 'sheets', 'settings'].includes(activeTab)
+              ? 'text-natural-primary font-boldScale'
+              : 'text-natural-text-light hover:text-natural-text'
+          }`}
+          style={{
+            color: showMobileMenu || ['sections', 'sheets', 'settings'].includes(activeTab)
+              ? 'var(--color-natural-primary)'
+              : 'var(--color-natural-text-light)'
+          }}
+        >
+          {['sections', 'sheets', 'settings'].includes(activeTab) && (
+            <span className="absolute top-1 right-1/3 w-1.5 h-1.5 bg-natural-primary rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-natural-primary)' }} />
+          )}
+          <Menu className="w-5 h-5" />
+          <span className="text-[10px] tracking-tight truncate font-bold">เมนูเพิ่มเติม</span>
+        </button>
+      </nav>
+
+      {/* Mobile Bottom Drawer Menu Overlay */}
+      <AnimatePresence>
+        {showMobileMenu && (
+          <>
+            {/* Backdrop shade */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowMobileMenu(false)}
+              className="fixed inset-0 bg-black z-40 lg:hidden"
+            />
+            
+            {/* Menu Drawer Sheet */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+              className="fixed bottom-0 left-0 right-0 bg-natural-bg rounded-t-3xl border-t border-natural-border-dark z-50 p-6 flex flex-col gap-5 shadow-2xl max-h-[85vh] overflow-y-auto lg:hidden pb-20"
+            >
+              <div className="flex justify-between items-center border-b border-natural-border-dark pb-3">
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5 text-natural-primary" />
+                  <h3 className="font-extrabold text-sm font-display text-natural-text">เมนูเครื่องมือทั้งหมด</h3>
+                </div>
+                <button
+                  onClick={() => setShowMobileMenu(false)}
+                  className="p-1.5 rounded-full bg-[#EDEBE4] hover:bg-natural-border-dark transition cursor-pointer text-natural-text"
+                >
+                  <X className="w-4.5 h-4.5" />
+                </button>
+              </div>
+
+              {/* Institution information tags */}
+              <div className="bg-natural-sidebar p-4 rounded-2xl border border-natural-border-dark/60 text-xs flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-natural-text-light font-semibold">สถานศึกษา:</span>
+                  <span className="text-natural-text font-extrabold max-w-[200px] truncate">{settings.school_name || 'ไม่ได้กำหนด'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-natural-text-light font-semibold">ปีการศึกษา:</span>
+                  <span className="text-natural-primary font-mono font-extrabold">{settings.academic_year || '2569'}</span>
+                </div>
+                <div className="flex justify-between items-center mt-1 pt-2 border-t border-natural-border-dark">
+                  <span className="text-natural-text-light font-semibold">ครูผู้ใช้งาน:</span>
+                  <span className="text-natural-text font-bold">{currentUser}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-natural-text-light font-semibold">สถานะ API:</span>
+                  {dbService.getSheetsUrl() ? (
+                    <span className="text-[10px] text-emerald-600 font-extrabold flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      LIVE เชื่อมต่อ Sheets แล้ว
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-600 font-extrabold flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                      ออฟไลน์ Sandbox
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Navigation list */}
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    setActiveTab('sections');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl transition cursor-pointer text-left border ${
+                    activeTab === 'sections'
+                      ? 'bg-natural-primary text-white font-bold border-transparent'
+                      : 'bg-white hover:bg-slate-50 text-natural-text border-natural-border hover:border-natural-border-dark'
+                  }`}
+                  style={{
+                    backgroundColor: activeTab === 'sections' ? 'var(--color-natural-primary)' : '#FFF',
+                    color: activeTab === 'sections' ? '#FFF' : 'var(--color-natural-text)'
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-xs font-bold">จัดการชั้นเรียน (Sections)</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 opacity-55" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('sheets');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl transition cursor-pointer text-left border ${
+                    activeTab === 'sheets'
+                      ? 'bg-natural-primary text-white font-bold border-transparent'
+                      : 'bg-white hover:bg-slate-50 text-natural-text border-natural-border hover:border-natural-border-dark'
+                  }`}
+                  style={{
+                    backgroundColor: activeTab === 'sheets' ? 'var(--color-natural-primary)' : '#FFF',
+                    color: activeTab === 'sheets' ? '#FFF' : 'var(--color-natural-text)'
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileSpreadsheet className="w-5 h-5 flex-shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold">เชื่อมต่อระบบ Sheets API</span>
+                      <span className="text-[9px] opacity-75 font-semibold mt-0.5">กู้คืนสคริปต์และตัวรับส่ง webhook</span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 opacity-55" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('settings');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl transition cursor-pointer text-left border ${
+                    activeTab === 'settings'
+                      ? 'bg-natural-primary text-white font-bold border-transparent'
+                      : 'bg-white hover:bg-slate-50 text-natural-text border-natural-border hover:border-natural-border-dark'
+                  }`}
+                  style={{
+                    backgroundColor: activeTab === 'settings' ? 'var(--color-natural-primary)' : '#FFF',
+                    color: activeTab === 'settings' ? '#FFF' : 'var(--color-natural-text)'
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <SettingsIcon className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-xs font-bold">ปรับแต่งระบบ / รีเซ็ตชีต</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 opacity-55" />
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        title="ยืนยันการรีเซ็ตหลักสูตรและฐานข้อมูล"
+        message={
+          dbService.getSheetsUrl()
+            ? '⚠️ คุณครูตรวจพบตัวเชื่อม Google Sheets สด! คุณแน่ใจใช่หรือไม่ที่จะย้อนคืนฐานข้อมูลระบบและเขียนทับสร้างตารางพร้อมข้อมูลเด็กนักเรียนตั้งต้นลงในหน้า Google Sheets ของท่านด้วย? ข้อมูลเดิมในแต่ละชีตจะถูกเขียนเพื่อล้างและเริ่มต้นใหม่'
+            : '⚠️ คุณครูแน่ใจใช่หรือไม่ที่จะรีเซ็ตล้างแผ่นงานข้อมูล (Reset Sheets) กลับสู่ค่าจำลองจากโรงเรียนเริ่มต้นเดิม? ประวัติการเช็กที่บันทึกใหม่ทั้งหมดจะสูญหายถาวร'
+        }
+        confirmText="ยืนยันการรีเซ็ต"
+        cancelText="ยกเลิก"
+        isDestructive={true}
+        onConfirm={confirmResetAppToDefault}
+        onCancel={() => setShowResetConfirm(false)}
+      />
 
     </div>
   );

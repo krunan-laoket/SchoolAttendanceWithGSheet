@@ -322,13 +322,13 @@ export default function ReportView({
 
         <div className="overflow-x-auto rounded-xl border border-natural-border print:text-xs">
           <table className="min-w-full divide-y divide-natural-border text-left">
-            <thead className="bg-[#EDEBE4]/45 text-natural-text-light text-xs font-semibold">
+            <thead className="bg-[#EDEBE4]/45 text-natural-text-light text-xs font-semibold whitespace-nowrap">
               <tr>
-                <th className="px-5 py-3">ระดับชั้นเรียน/ห้อง</th>
-                <th className="px-5 py-3 text-center">ครูที่ปรึกษาประจำวิชา</th>
-                <th className="px-5 py-3 text-center">นร.ในบังคับ</th>
-                <th className="px-5 py-3 text-center">สถิติสะสม (มาปกติ / สาย / ขาด / ลา)</th>
-                <th className="px-5 py-3 text-right">อัตราความสม่ำเสมอสะสม</th>
+                <th className="px-5 py-3 whitespace-nowrap">ระดับชั้นเรียน/ห้อง</th>
+                <th className="px-5 py-3 text-center whitespace-nowrap">ครูที่ปรึกษาประจำวิชา</th>
+                <th className="px-5 py-3 text-center whitespace-nowrap">นร.ในบังคับ</th>
+                <th className="px-5 py-3 text-center whitespace-nowrap">สถิติสะสม (มาปกติ / สาย / ขาด / ลา)</th>
+                <th className="px-5 py-3 text-right whitespace-nowrap">อัตราความสม่ำเสมอสะสม</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-natural-border/60 text-natural-text-light text-xs md:text-sm">

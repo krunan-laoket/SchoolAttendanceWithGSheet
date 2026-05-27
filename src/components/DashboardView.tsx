@@ -181,14 +181,14 @@ export default function DashboardView({
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-natural-border">
+            <div className="overflow-x-auto rounded-xl border border-natural-border">
               <table className="min-w-full divide-y divide-natural-border text-left">
-                <thead className="bg-[#EDEBE4]/60 text-natural-text-light text-xs font-semibold">
+                <thead className="bg-[#EDEBE4]/60 text-natural-text-light text-xs font-semibold whitespace-nowrap">
                   <tr>
-                    <th className="px-5 py-3">ห้องเรียน</th>
-                    <th className="px-5 py-3 text-center">ความคืบหน้า (เช็กชื่อ)</th>
-                    <th className="px-5 py-3 text-center">สถิติรายห้อง (มา/ลา/สาย/ขาด)</th>
-                    <th className="px-5 py-3 text-right">สัดส่วนเข้าเรียนวันนี้</th>
+                    <th className="px-5 py-3 whitespace-nowrap">ห้องเรียน</th>
+                    <th className="px-5 py-3 text-center whitespace-nowrap">ความคืบหน้า (เช็กชื่อ)</th>
+                    <th className="px-5 py-3 text-center whitespace-nowrap">สถิติรายห้อง (มา/ลา/สาย/ขาด)</th>
+                    <th className="px-5 py-3 text-right whitespace-nowrap">สัดส่วนเข้าเรียนวันนี้</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-natural-border text-natural-text text-xs md:text-sm">
@@ -268,7 +268,7 @@ export default function DashboardView({
                   >
                     <div>
                       <span className="font-bold text-natural-text block text-xs">
-                        ด.ช./ด.ญ. {stu.first_name} {stu.last_name}
+                        {stu.first_name} {stu.last_name}
                       </span>
                       <span className="text-natural-text-light text-2xs block mt-0.5 font-mono">
                         ID: {stu.student_id} | {stu.grade_level} room: {sections.find(s => s.section_id === stu.section_id)?.section_name}

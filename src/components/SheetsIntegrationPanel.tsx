@@ -21,27 +21,26 @@ import {
 } from 'lucide-react';
 import { dbService } from '../db';
 import { motion } from 'motion/react';
-import { db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
-import { User } from 'firebase/auth';
 
 interface Props {
   onAddToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   onRefreshAllData: () => void;
-  user: User | null;
 }
 
-export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData, user }: Props) {
+export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData }: Props) {
   const [activeTab, setActiveTab] = useState<'info' | 'script' | 'logs'>('info');
   const [copied, setCopied] = useState(false);
   const [sheetsUrl, setSheetsUrl] = useState('');
+  const [savedUrl, setSavedUrl] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [syncErrorMessage, setSyncErrorMessage] = useState('');
 
   // Loaded saved URL on mount
   useEffect(() => {
-    setSheetsUrl(dbService.getSheetsUrl());
+    const url = dbService.getSheetsUrl();
+    setSheetsUrl(url);
+    setSavedUrl(url);
   }, []);
 
   const logs = dbService.getDBLogs();
@@ -64,25 +63,25 @@ export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData, u
       // Clear all synced data and reset back to beautiful default mockup local sandbox dataset
       dbService.resetDB();
       onAddToast('ล้างการเชื่อมเชื่อมต่อนอกเรียบร้อยแล้ว กู้คืนฐานข้อมูลและสลับสู่โหมด Sandbox ท้องถิ่นสำเร็จ', 'success');
+      setSavedUrl('');
     } else {
       onAddToast('บันทึกที่อยู่ตัวเชื่อมแผ่นงานเรียบร้อย!', 'success');
+      setSavedUrl(trimmed);
     }
 
     dbService.setSheetsUrl(trimmed);
-    
-    if (user) {
-      try {
-        const docRef = doc(db, 'users', user.uid);
-        await setDoc(docRef, { sheetsUrl: trimmed });
-        if (trimmed) {
-          onAddToast('☁️ สำรองข้อมูลตัวเชื่อมนี้ลง Firestore คลาวด์เสร็จสมบูรณ์', 'success');
-        }
-      } catch (err: any) {
-        console.error("Firestore setDoc error:", err);
-      }
-    }
-    
     onRefreshAllData();
+  };
+
+  const handleClearUrlAndData = () => {
+    dbService.setSheetsUrl('');
+    dbService.resetDB();
+    setSheetsUrl('');
+    setSavedUrl('');
+    setSyncStatus('idle');
+    setSyncErrorMessage('');
+    onRefreshAllData();
+    onAddToast('ลบลิงก์ที่บันทึกไว้และล้างข้อมูลเรียบร้อยแล้ว ระบบกลับสู่โหมดจำลอง Sandbox ท้องถิ่น', 'success');
   };
 
   const handleSyncFromSheets = async () => {
@@ -99,14 +98,7 @@ export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData, u
     try {
       // Save the url first
       dbService.setSheetsUrl(trimmed);
-      if (user) {
-        try {
-          const docRef = doc(db, 'users', user.uid);
-          await setDoc(docRef, { sheetsUrl: trimmed });
-        } catch (err: any) {
-          console.error("Firestore setDoc on sync error:", err);
-        }
-      }
+      setSavedUrl(trimmed);
       
       const res = await dbService.syncFromSheets(trimmed);
       if (res.success) {
@@ -138,7 +130,7 @@ export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData, u
             <div className={`p-2.5 rounded-xl ${
               isLive ? 'bg-natural-present/10 text-natural-present animate-pulse' : 'bg-natural-text-light/10 text-natural-text-light'
             }`}>
-              {isLive ? <Wifi className="w-5.5 h-http-5.5" /> : <WifiOff className="w-5.5 h-5.5" />}
+              {isLive ? <Wifi className="w-5.5 h-5.5" /> : <WifiOff className="w-5.5 h-5.5" />}
             </div>
             <div>
               <h3 className="font-bold text-natural-text text-base">การเชื่อมต่อแผ่นงานสด (Google Sheets Live Integration)</h3>
@@ -175,13 +167,23 @@ export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData, u
               className="flex-1 px-3.5 py-2.5 rounded-xl border border-natural-border bg-natural-bg font-mono text-xs text-natural-text focus:outline-none focus:border-natural-primary"
             />
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleSaveUrl}
-                className="px-4 py-2.5 text-xs font-bold bg-[#3C3A36] hover:bg-[#3C3A36]/90 text-white rounded-xl transition cursor-pointer flex-shrink-0"
-              >
-                บันทึก URL
-              </button>
+              {savedUrl && sheetsUrl === savedUrl ? (
+                <button
+                  type="button"
+                  onClick={handleClearUrlAndData}
+                  className="px-4 py-2.5 text-xs font-bold bg-[#C04000] hover:bg-[#C04000]/90 text-white rounded-xl transition cursor-pointer flex-shrink-0"
+                >
+                  ลบลิงก์และล้างข้อมูล
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSaveUrl}
+                  className="px-4 py-2.5 text-xs font-bold bg-[#3C3A36] hover:bg-[#3C3A36]/90 text-white rounded-xl transition cursor-pointer flex-shrink-0"
+                >
+                  {savedUrl ? 'บันทึก URL ใหม่' : 'บันทึก URL'}
+                </button>
+              )}
               <button
                 type="button"
                 disabled={isSyncing || !sheetsUrl}

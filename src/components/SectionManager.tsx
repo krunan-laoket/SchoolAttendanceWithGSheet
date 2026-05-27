@@ -6,7 +6,8 @@
 import React, { useState } from 'react';
 import { Section, Student } from '../types';
 import { dbService } from '../db';
-import { PlusCircle, Trash2, ArrowRightLeft, BookOpen, User, Users, AlertCircle } from 'lucide-react';
+import ConfirmModal from './ConfirmModal';
+import { PlusCircle, Trash2, ArrowRightLeft, BookOpen, User, Users, AlertCircle, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Props {
@@ -18,14 +19,40 @@ interface Props {
 
 export default function SectionManager({ sections, students, onAddToast, onRefreshAllData }: Props) {
   const [showAddSection, setShowAddSection] = useState(false);
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [gradeLevel, setGradeLevel] = useState('ประถมศึกษาปีที่ 1');
   const [sectionName, setSectionName] = useState('');
   const [teacherName, setTeacherName] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [sectionToDelete, setSectionToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const activeStudents = students.filter((s) => s.active);
 
-  const handleAddSection = (e: React.FormEvent) => {
+  const handleToggleForm = () => {
+    if (showAddSection) {
+      setShowAddSection(false);
+      setEditingSectionId(null);
+      setGradeLevel('ประถมศึกษาปีที่ 1');
+      setSectionName('');
+      setTeacherName('');
+      setValidationError('');
+    } else {
+      setShowAddSection(true);
+    }
+  };
+
+  const handleStartEdit = (sec: Section) => {
+    setEditingSectionId(sec.section_id);
+    setGradeLevel(sec.grade_level);
+    setSectionName(sec.section_name);
+    setTeacherName(sec.teacher_name);
+    setShowAddSection(true);
+    setValidationError('');
+    // Scroll to form smoothly
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError('');
 
@@ -39,20 +66,42 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
     }
 
     try {
-      dbService.addSection({
-        section_id: `SEC-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-        grade_level: gradeLevel,
-        section_name: sectionName.trim(),
-        teacher_name: teacherName.trim(),
-      });
+      if (editingSectionId) {
+        // Edit mode
+        dbService.updateSection({
+          section_id: editingSectionId,
+          grade_level: gradeLevel,
+          section_name: sectionName.trim(),
+          teacher_name: teacherName.trim(),
+          student_count: sections.find((s) => s.section_id === editingSectionId)?.student_count || 0,
+          active: true,
+        });
 
-      onRefreshAllData();
-      setSectionName('');
-      setTeacherName('');
-      setShowAddSection(false);
-      onAddToast('บันทึกระดับห้องเรียนใหม่สำเร็จเรียบร้อยและอัปเดตลง Sections sheet แล้ว!', 'success');
+        onRefreshAllData();
+        onAddToast(`อัปเดตข้อมูลระดับชั้น ${gradeLevel} ${sectionName.trim()} ลงระบบหลักเรียบร้อยแล้ว!`, 'success');
+        
+        // Reset
+        setEditingSectionId(null);
+        setSectionName('');
+        setTeacherName('');
+        setShowAddSection(false);
+      } else {
+        // Add mode
+        dbService.addSection({
+          section_id: `SEC-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+          grade_level: gradeLevel,
+          section_name: sectionName.trim(),
+          teacher_name: teacherName.trim(),
+        });
+
+        onRefreshAllData();
+        setSectionName('');
+        setTeacherName('');
+        setShowAddSection(false);
+        onAddToast('บันทึกระดับห้องเรียนใหม่สำเร็จเรียบร้อยและอัปเดตลง Sections sheet แล้ว!', 'success');
+      }
     } catch (err: any) {
-      setValidationError(err.message || 'บันทึกห้องเรียนใหม่ล้มเหลว');
+      setValidationError(err.message || 'บันทึกห้องเรียนล้มเหลว');
     }
   };
 
@@ -68,17 +117,19 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
       return;
     }
 
-    const isConfirmed = window.confirm(
-      `คุณครูต้องการลบระดับห้องเรียน "${name}" ออกจากสารระบบของโรงเรียนหรือไม่? ข้อมูลประวัติระบบจะถูกลบ Soft-delete`
-    );
-    if (!isConfirmed) return;
+    setSectionToDelete({ id: sectionId, name });
+  };
 
+  const confirmDeleteSection = () => {
+    if (!sectionToDelete) return;
     try {
-      dbService.deleteSection(sectionId);
+      dbService.deleteSection(sectionToDelete.id);
       onRefreshAllData();
-      onAddToast(`ทำการลบระดับชั้นห้องเรียน ${name} เรียบร้อยแล้ว`, 'success');
+      onAddToast(`ทำการลบระดับชั้นห้องเรียน ${sectionToDelete.name} เรียบร้อยแล้ว`, 'success');
     } catch (err: any) {
       onAddToast(`ลบห้องเรียนไม่สำเร็จ: ${err.message}`, 'error');
+    } finally {
+      setSectionToDelete(null);
     }
   };
 
@@ -93,11 +144,11 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
         </div>
 
         <button
-          onClick={() => setShowAddSection(!showAddSection)}
-          className="px-4 py-2.5 bg-natural-primary hover:bg-[#4F7942] text-white rounded-xl text-xs font-bold font-sans transition flex items-center gap-1.5 cursor-pointer self-start sm:sm:self-auto shadow-xs"
+          onClick={handleToggleForm}
+          className="px-4 py-2.5 bg-natural-primary hover:bg-[#4F7942] text-white rounded-xl text-xs font-bold font-sans transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-xs"
         >
           <PlusCircle className="w-4 h-4" />
-          <span>{showAddSection ? 'ปิดแผงกรอกข้อมูล' : 'เพิ่มห้องประจำชั้น'}</span>
+          <span>{showAddSection ? (editingSectionId ? 'ยกเลิกการแก้ไข' : 'ปิดแผงกรอกข้อมูล') : 'เพิ่มห้องประจำชั้น'}</span>
         </button>
       </div>
 
@@ -110,8 +161,10 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <form onSubmit={handleAddSection} className="bg-[#EDEBE4]/40 border border-natural-border p-5 rounded-2xl space-y-4 shadow-2xs">
-              <h4 className="font-bold text-natural-text text-sm">ระบุข้อมูลเพื่อบันทึกลงชีต Sections Sheet</h4>
+            <form onSubmit={handleFormSubmit} className="bg-[#EDEBE4]/40 border border-natural-border p-5 rounded-2xl space-y-4 shadow-2xs">
+              <h4 className="font-bold text-natural-text text-sm">
+                {editingSectionId ? 'แก้ไขข้อมูลระดับชั้นเรียนหลัก' : 'ระบุข้อมูลเพื่อบันทึกลงชีต Sections Sheet'}
+              </h4>
               
               {validationError && (
                 <div className="p-3 bg-natural-absent/15 border border-natural-absent/25 text-natural-absent font-bold rounded-xl text-xs flex items-center gap-2">
@@ -165,16 +218,16 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
               <div className="flex gap-2 justify-end pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddSection(false)}
+                  onClick={handleToggleForm}
                   className="px-4 py-2.5 text-xs font-bold rounded-xl border border-natural-border bg-white text-natural-text-light hover:bg-[#EDEBE4]/40 transition cursor-pointer"
                 >
-                  ย้อนกลับ
+                  ย้อนกลับ / ยกเลิก
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2.5 text-xs font-bold rounded-xl bg-natural-primary hover:bg-[#4F7942] text-white transition cursor-pointer shadow-xs"
                 >
-                  บันทึกห้องเรียนใหม่
+                  {editingSectionId ? 'บันทึกการแก้ไขห้องเรียน' : 'บันทึกห้องเรียนใหม่'}
                 </button>
               </div>
             </form>
@@ -199,13 +252,22 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
                     <BookOpen className="w-5.5 h-5.5" />
                   </div>
                   
-                  <button
-                    onClick={() => handleDeleteSection(sec.section_id, `${sec.grade_level} ${sec.section_name}`)}
-                    className="p-1 px-1.5 text-natural-text-light hover:text-natural-absent hover:bg-natural-absent/15 rounded-lg transition cursor-pointer"
-                    title="ลบชั้นเรียนออก"
-                  >
-                    <Trash2 className="w-4.5 h-4.5" />
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => handleStartEdit(sec)}
+                      className="p-1 px-1.5 text-natural-text-light hover:text-natural-primary hover:bg-[#EDEBE4]/60 rounded-lg transition cursor-pointer"
+                      title="แก้ไขข้อมูลห้องเรียน"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSection(sec.section_id, `${sec.grade_level} ${sec.section_name}`)}
+                      className="p-1 px-1.5 text-natural-text-light hover:text-natural-absent hover:bg-natural-absent/15 rounded-lg transition cursor-pointer"
+                      title="ลบชั้นเรียนออก"
+                    >
+                      <Trash2 className="w-4.5 h-4.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -237,6 +299,17 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
           );
         })}
       </div>
+
+      <ConfirmModal
+        isOpen={!!sectionToDelete}
+        title="ยืนยันการลบระดับห้องเรียน"
+        message={`คุณครูต้องการลบระดับห้องเรียน "${sectionToDelete?.name}" ออกจากสารระบบของโรงเรียนหรือไม่? ข้อมูลประวัติระบบจะถูกลบแบบ Soft-delete`}
+        confirmText="ยืนยันการลบ"
+        cancelText="ยกเลิก"
+        isDestructive={true}
+        onConfirm={confirmDeleteSection}
+        onCancel={() => setSectionToDelete(null)}
+      />
 
     </div>
   );
