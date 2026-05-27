@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Section, Student } from '../types';
 import { dbService } from '../db';
-import { PlusCircle, Trash2, ArrowRightLeft, BookOpen, User, Users, AlertCircle, Edit2, X } from 'lucide-react';
+import { PlusCircle, Trash2, ArrowRightLeft, BookOpen, User, Users, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Props {
@@ -22,46 +22,6 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
   const [sectionName, setSectionName] = useState('');
   const [teacherName, setTeacherName] = useState('');
   const [validationError, setValidationError] = useState('');
-
-  // Edit classroom states
-  const [editingSection, setEditingSection] = useState<Section | null>(null);
-  const [editGradeLevel, setEditGradeLevel] = useState('');
-  const [editSectionName, setEditSectionName] = useState('');
-  const [editTeacherName, setEditTeacherName] = useState('');
-
-  const handleOpenEdit = (sec: Section) => {
-    setEditingSection(sec);
-    setEditGradeLevel(sec.grade_level);
-    setEditSectionName(sec.section_name);
-    setEditTeacherName(sec.teacher_name);
-  };
-
-  const handleSaveEditSection = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSection) return;
-    if (!editSectionName.trim()) {
-      onAddToast('กรุณาระบุชื่อห้องเรียน', 'error');
-      return;
-    }
-    if (!editTeacherName.trim()) {
-      onAddToast('กรุณาระบุชื่อครูที่ปรึกษาประจำชั้นเรียน', 'error');
-      return;
-    }
-
-    try {
-      dbService.updateSection({
-        ...editingSection,
-        grade_level: editGradeLevel,
-        section_name: editSectionName.trim(),
-        teacher_name: editTeacherName.trim(),
-      });
-      onRefreshAllData();
-      setEditingSection(null);
-      onAddToast('แก้ไขข้อมูลชั้นเรียนสำเร็จเสร็จสิ้น', 'success');
-    } catch (err: any) {
-      onAddToast(`ล้มเหลวในการแก้ไขห้องเรียน: ${err.message}`, 'error');
-    }
-  };
 
   const activeStudents = students.filter((s) => s.active);
 
@@ -96,8 +56,6 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
     }
   };
 
-  const [deleteConfirmSection, setDeleteConfirmSection] = useState<{ id: string; name: string } | null>(null);
-
   const handleDeleteSection = (sectionId: string, name: string) => {
     const activeKids = activeStudents.filter((s) => s.section_id === sectionId);
     
@@ -110,7 +68,18 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
       return;
     }
 
-    setDeleteConfirmSection({ id: sectionId, name });
+    const isConfirmed = window.confirm(
+      `คุณครูต้องการลบระดับห้องเรียน "${name}" ออกจากสารระบบของโรงเรียนหรือไม่? ข้อมูลประวัติระบบจะถูกลบ Soft-delete`
+    );
+    if (!isConfirmed) return;
+
+    try {
+      dbService.deleteSection(sectionId);
+      onRefreshAllData();
+      onAddToast(`ทำการลบระดับชั้นห้องเรียน ${name} เรียบร้อยแล้ว`, 'success');
+    } catch (err: any) {
+      onAddToast(`ลบห้องเรียนไม่สำเร็จ: ${err.message}`, 'error');
+    }
   };
 
   return (
@@ -230,22 +199,13 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
                     <BookOpen className="w-5.5 h-5.5" />
                   </div>
                   
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenEdit(sec)}
-                      className="p-1 px-1.5 text-natural-text-light hover:text-natural-primary hover:bg-natural-primary/10 rounded-lg transition cursor-pointer"
-                      title="แก้ไขชั้นเรียน"
-                    >
-                      <Edit2 className="w-4.5 h-4.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSection(sec.section_id, `${sec.grade_level} ${sec.section_name}`)}
-                      className="p-1 px-1.5 text-natural-text-light hover:text-natural-absent hover:bg-natural-absent/15 rounded-lg transition cursor-pointer"
-                      title="ลบชั้นเรียนออก"
-                    >
-                      <Trash2 className="w-4.5 h-4.5" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleDeleteSection(sec.section_id, `${sec.grade_level} ${sec.section_name}`)}
+                    className="p-1 px-1.5 text-natural-text-light hover:text-natural-absent hover:bg-natural-absent/15 rounded-lg transition cursor-pointer"
+                    title="ลบชั้นเรียนออก"
+                  >
+                    <Trash2 className="w-4.5 h-4.5" />
+                  </button>
                 </div>
 
                 <div>
@@ -277,134 +237,6 @@ export default function SectionManager({ sections, students, onAddToast, onRefre
           );
         })}
       </div>
-
-      {/* Custom Classroom Delete Confirmation Modal */}
-      <AnimatePresence>
-        {deleteConfirmSection && (
-          <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-natural-card rounded-2xl p-6 shadow-xl max-w-sm w-full relative space-y-4 border border-natural-border text-center"
-            >
-              <div className="w-12 h-12 bg-natural-absent/15 text-natural-absent rounded-full flex items-center justify-center mx-auto">
-                <Trash2 className="w-6 h-6 animate-pulse" />
-              </div>
-              <h4 className="font-extrabold text-natural-text text-sm md:text-base">ยืนยันการลบระดับชั้นห้องเรียน</h4>
-              <p className="text-natural-text-light text-xs leading-relaxed">
-                คุณครูต้องการลบระดับห้องเรียน <strong className="text-natural-text">{deleteConfirmSection.name}</strong> ออกจากทะเบียนระบบหลักหรือไม่?
-              </p>
-
-              <div className="flex gap-2.5 mt-4 pt-1">
-                <button
-                  onClick={() => setDeleteConfirmSection(null)}
-                  className="flex-1 py-2.5 text-xs font-bold rounded-xl border border-natural-border text-natural-text-light hover:bg-[#EDEBE4]/40 cursor-pointer transition"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  onClick={() => {
-                    const { id, name } = deleteConfirmSection;
-                    setDeleteConfirmSection(null);
-                    try {
-                      dbService.deleteSection(id);
-                      onRefreshAllData();
-                      onAddToast(`ลบห้องเรียน ${name} เรียบร้อยแล้ว`, 'success');
-                    } catch (err: any) {
-                      onAddToast(`ลบห้องเรียนไม่สำเร็จ: ${err.message}`, 'error');
-                    }
-                  }}
-                  className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-natural-absent hover:bg-[#A83200] text-white cursor-pointer transition shadow-xs"
-                >
-                  ยืนยันการลบ
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Custom Edit Classroom Modal */}
-      <AnimatePresence>
-        {editingSection && (
-          <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-natural-card rounded-2xl p-6 shadow-xl max-w-md w-full relative space-y-4 border border-natural-border text-left font-sans animate-fade-in"
-            >
-              <div className="flex items-center justify-between pb-2 border-b border-natural-border">
-                <h4 className="font-extrabold text-natural-text text-sm md:text-base">แก้ไขข้อมูลระดับห้องเรียน</h4>
-                <button
-                  type="button"
-                  onClick={() => setEditingSection(null)}
-                  className="text-natural-text-light hover:text-natural-text p-1.5 rounded-lg hover:bg-[#EDEBE4]/60 transition cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveEditSection} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-natural-text-light">ระดับชั้นปี:</label>
-                  <select
-                    value={editGradeLevel}
-                    onChange={(e) => setEditGradeLevel(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-natural-border bg-white text-natural-text text-xs md:text-sm focus:outline-none"
-                  >
-                    <option value="ประถมศึกษาปีที่ 1">ประถมศึกษาปีที่ 1</option>
-                    <option value="ประถมศึกษาปีที่ 2">ประถมศึกษาปีที่ 2</option>
-                    <option value="ประถมศึกษาปีที่ 3">ประถมศึกษาปีที่ 3</option>
-                    <option value="ประถมศึกษาปีที่ 4">ประถมศึกษาปีที่ 4</option>
-                    <option value="ประถมศึกษาปีที่ 5">ประถมศึกษาปีที่ 5</option>
-                    <option value="ประถมศึกษาปีที่ 6">ประถมศึกษาปีที่ 6</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-natural-text-light">ชื่อห้องเรียน / บัญชีรายชื่อ:</label>
-                  <input
-                    type="text"
-                    required
-                    value={editSectionName}
-                    onChange={(e) => setEditSectionName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-natural-border bg-white text-natural-text text-xs md:text-sm focus:outline-none focus:border-natural-primary"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-natural-text-light">ชื่อ-สกุลครูที่ปรึกษาประจำชั้น:</label>
-                  <input
-                    type="text"
-                    required
-                    value={editTeacherName}
-                    onChange={(e) => setEditTeacherName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-natural-border bg-white text-natural-text text-xs md:text-sm focus:outline-none focus:border-natural-primary"
-                  />
-                </div>
-
-                <div className="flex gap-2.5 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingSection(null)}
-                    className="flex-1 py-2.5 text-xs font-bold rounded-xl border border-natural-border text-natural-text-light hover:bg-[#EDEBE4]/40 transition cursor-pointer"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-natural-primary hover:bg-[#4F7942] text-white transition cursor-pointer shadow-xs"
-                  >
-                    บันทึกห้องเรียน
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
     </div>
   );

@@ -64,7 +64,6 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [syncingFirestore, setSyncingFirestore] = useState(false);
-  const [sandboxMode, setSandboxMode] = useState(false);
 
   const currentUser = user 
     ? (user.displayName || user.email || 'คุณครูประจำชั้น') 
@@ -83,7 +82,6 @@ export default function App() {
       setAuthLoading(false);
       
       if (firebaseUser) {
-        setSandboxMode(false);
         setSyncingFirestore(true);
         try {
           const docRef = doc(db, 'users', firebaseUser.uid);
@@ -137,7 +135,6 @@ export default function App() {
     try {
       await signOut(auth);
       dbService.setSheetsUrl(''); // Reset local sheets URL on sign out to clear user data path
-      setSandboxMode(false);
       refreshAllData();
       addToast('ออกจากระบบคลาวด์สำเร็จ รีเซ็ตสู่โหมดจำลอง Sandbox ท้องถิ่น', 'info');
     } catch (err: any) {
@@ -289,18 +286,10 @@ export default function App() {
     );
   }
 
-  if (isFirebaseConfigured && !user && !sandboxMode) {
+  if (isFirebaseConfigured && !user) {
     return (
       <>
-        <LoginScreen 
-          onSignIn={handleSignIn} 
-          authLoading={authLoading} 
-          onSkipLogin={() => {
-            setSandboxMode(true);
-            setActiveTab('dashboard');
-            addToast('ยินดีต้อนรับเข้าสู่โหมด Sandbox ท้องถิ่น (ไม่ซิงค์ภายนอก)', 'success');
-          }} 
-        />
+        <LoginScreen onSignIn={handleSignIn} authLoading={authLoading} />
         {/* Global Toast Monitor alerts */}
         <Toast toasts={toasts} removeToast={removeToast} />
       </>
@@ -391,22 +380,20 @@ export default function App() {
               <span>รายงานส่งออกสถิติ</span>
             </button>
 
-            {user && (
-              <button
-                onClick={() => setActiveTab('sheets')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition cursor-pointer text-left ${
-                  activeTab === 'sheets'
-                    ? 'bg-natural-primary text-white font-bold'
-                    : 'hover:bg-natural-primary/10 text-natural-primary hover:text-natural-primary/80'
-                }`}
-              >
-                <FileSpreadsheet className="w-5 h-5 flex-shrink-0" />
-                <span className="flex items-center gap-1">
-                  เชื่อมต่อระบบ Sheets
-                  <span className="bg-natural-primary/10 text-natural-primary border border-natural-primary/20 text-3xs px-1.5 py-0.5 rounded-full font-bold">API</span>
-                </span>
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('sheets')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition cursor-pointer text-left ${
+                activeTab === 'sheets'
+                  ? 'bg-natural-primary text-white font-bold'
+                  : 'hover:bg-natural-primary/10 text-natural-primary hover:text-natural-primary/80'
+              }`}
+            >
+              <FileSpreadsheet className="w-5 h-5 flex-shrink-0" />
+              <span className="flex items-center gap-1">
+                เชื่อมต่อระบบ Sheets
+                <span className="bg-natural-primary/10 text-natural-primary border border-natural-primary/20 text-3xs px-1.5 py-0.5 rounded-full font-bold">API</span>
+              </span>
+            </button>
           </nav>
         </div>
 
@@ -552,7 +539,6 @@ export default function App() {
                   attendanceRecords={attendanceRecords}
                   settings={settings}
                   onAddToast={addToast}
-                  isSandbox={!user || sandboxMode || !dbService.getSheetsUrl()}
                 />
               )}
 
