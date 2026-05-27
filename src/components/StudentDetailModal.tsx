@@ -107,7 +107,7 @@ export default function StudentDetailModal({
 
           <div className="space-y-1">
             <h3 className="text-lg md:text-xl font-bold text-natural-text font-sans">
-              ด.ช./ด.ญ. {student.first_name} {student.last_name}
+              {student.first_name} {student.last_name}
             </h3>
             <p className="text-xs text-natural-text-light font-medium">
               ทะเบียนประจำตัว: <span className="font-mono bg-[#EDEBE4] text-natural-text px-1.5 py-0.5 rounded font-extrabold">{student.student_id}</span>

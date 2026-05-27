@@ -20,7 +20,8 @@ import {
   AlertCircle,
   CheckCircle2,
   X,
-  FileDown
+  FileDown,
+  Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -65,6 +66,12 @@ export default function RosterView({
   // Bulk action comment/note modal state
   const [activeNoteStudent, setActiveNoteStudent] = useState<Student | null>(null);
   const [studentNoteText, setStudentNoteText] = useState('');
+
+  // Edit Section (Active Classroom) state
+  const [showEditSectionModal, setShowEditSectionModal] = useState(false);
+  const [editSectionGrade, setEditSectionGrade] = useState('');
+  const [editSectionNameText, setEditSectionNameText] = useState('');
+  const [editSectionTeacher, setEditSectionTeacher] = useState('');
 
   useEffect(() => {
     if (sections.length > 0 && !selectedSectionId) {
@@ -143,19 +150,46 @@ export default function RosterView({
     }
   };
 
-  const handleDeleteStudent = (studentId: string, name: string) => {
-    const isConfirmed = window.confirm(
-      `คุณครูต้องการลบ/จำหน่ายรายชื่อ ด.ช./ด.ญ. "${name}" ออกจากระบบทะเบียนประจำชั้นเรียนหรือไม่? ข้อมูลประวัติการมาเรียนเดิมจะถูกทำเครื่องหมายถาวร`
-    );
-    if (!isConfirmed) return;
+  const handleOpenEditSection = () => {
+    if (!activeSection) return;
+    setEditSectionGrade(activeSection.grade_level);
+    setEditSectionNameText(activeSection.section_name);
+    setEditSectionTeacher(activeSection.teacher_name);
+    setShowEditSectionModal(true);
+  };
+
+  const handleSaveSection = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeSection) return;
+    if (!editSectionNameText.trim()) {
+      onAddToast('กรุณาระบุชื่อห้องเรียน', 'error');
+      return;
+    }
+    if (!editSectionTeacher.trim()) {
+      onAddToast('กรุณาระบุชื่อครูที่ปรึกษาประจำชั้นเรียน', 'error');
+      return;
+    }
 
     try {
-      dbService.deleteStudent(studentId);
+      const updatedSec: Section = {
+        ...activeSection,
+        grade_level: editSectionGrade,
+        section_name: editSectionNameText.trim(),
+        teacher_name: editSectionTeacher.trim()
+      };
+      dbService.updateSection(updatedSec);
       onRefreshAllData();
-      onAddToast(`ลบประวัติของคุณ ${name} สำเร็จและเขียนกลับไปยัง Students sheet`, 'success');
+      setShowEditSectionModal(false);
+      onAddToast(`อัปเดตข้อมูลระดับห้องเรียน ${editSectionGrade} ${editSectionNameText.trim()} เรียบร้อยแล้ว`, 'success');
     } catch (err: any) {
-      onAddToast(`ไม่สามารถลบชื่อได้: ${err.message}`, 'error');
+      onAddToast(`ไม่สามารถบันทึกการแก้ไขได้: ${err.message}`, 'error');
     }
+  };
+
+  const [deleteConfirmStudent, setDeleteConfirmStudent] = useState<{ id: string; name: string } | null>(null);
+
+  const handleDeleteStudent = (studentId: string, name: string) => {
+    setDeleteConfirmStudent({ id: studentId, name });
   };
 
   const handleCreateStudent = (e: React.FormEvent) => {
@@ -299,11 +333,19 @@ export default function RosterView({
         {/* Bulk tools bar */}
         <div className="p-5 border-b border-natural-border bg-natural-bg/50 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
           <div className="flex flex-col gap-1">
-            <h3 className="font-extrabold text-natural-text text-base flex items-center gap-2">
+            <h3 className="font-extrabold text-natural-text text-base flex flex-wrap items-center gap-2">
               <span>เช็กชื่อห้องเรียน: {activeSection?.grade_level} {activeSection?.section_name}</span>
               <span className="text-2xs bg-natural-primary/10 text-natural-primary px-2.5 py-0.5 rounded-full font-bold">
                 ครูผู้ดูแล: {activeSection?.teacher_name}
               </span>
+              <button
+                onClick={handleOpenEditSection}
+                className="p-1 px-2 text-2xs font-bold text-natural-primary bg-natural-primary/10 hover:bg-natural-primary/25 rounded-md flex items-center gap-1 transition cursor-pointer"
+                title="แก้ไขข้อมูลห้องเรียนและครู"
+              >
+                <Edit2 className="w-3 h-3" />
+                <span>แก้ไขห้อง</span>
+              </button>
             </h3>
             <p className="text-xs text-natural-text-light">
               ความคืบหน้าการเช็กวันนี้: <strong className="text-natural-text">{checkedCount} จากสมาชิกทั้งหมด {totalCount} คน</strong>
@@ -543,6 +585,13 @@ export default function RosterView({
                             เพิ่มโน้ต
                           </button>
                           <button
+                            onClick={() => onSelectStudent(stu)}
+                            className="p-1 text-natural-text-light/50 hover:text-natural-primary hover:bg-natural-primary/10 rounded-lg transition cursor-pointer"
+                            title="แก้ไขข้อมูลนักเรียน"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handleDeleteStudent(stu.student_id, `${stu.first_name} ${stu.last_name}`)}
                             className="p-1 text-natural-text-light/50 hover:text-natural-absent hover:bg-[#C04000]/10 rounded-lg transition cursor-pointer"
                             title="ลบออกจากระบบห้องนี้"
@@ -694,6 +743,134 @@ export default function RosterView({
                   บันทึกโน้ต
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmStudent && (
+          <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-natural-card rounded-2xl p-6 shadow-xl max-w-sm w-full relative space-y-4 border border-natural-border text-center"
+            >
+              <div className="w-12 h-12 bg-natural-absent/15 text-natural-absent rounded-full flex items-center justify-center mx-auto">
+                <Trash2 className="w-6 h-6 animate-bounce" />
+              </div>
+              <h4 className="font-extrabold text-natural-text text-sm md:text-base">ยืนยันการลบรายชื่อนักเรียน</h4>
+              <p className="text-natural-text-light text-xs leading-relaxed">
+                คุณครูต้องการลบ/จำหน่ายรายชื่อ <strong className="text-natural-text">ด.ช./ด.ญ. {deleteConfirmStudent.name}</strong> ออกจากระบบทะเบียนประจำชั้นเรียนหรือไม่? ข้อมูลประวัติเดิมจะหมดผลทำงานโดยทันที
+              </p>
+
+              <div className="flex gap-2.5 mt-4 pt-1">
+                <button
+                  onClick={() => setDeleteConfirmStudent(null)}
+                  className="flex-1 py-2.5 text-xs font-bold rounded-xl border border-natural-border text-natural-text-light hover:bg-[#EDEBE4]/40 cursor-pointer transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={() => {
+                    const { id, name } = deleteConfirmStudent;
+                    setDeleteConfirmStudent(null);
+                    try {
+                      dbService.deleteStudent(id);
+                      onRefreshAllData();
+                      onAddToast(`ลบประวัติของ ด.ช./ด.ญ. ${name} สำเร็จและอัปเดตระบบแล้ว`, 'success');
+                    } catch (err: any) {
+                      onAddToast(`ไม่สามารถลบชื่อได้: ${err.message}`, 'error');
+                    }
+                  }}
+                  className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-natural-absent hover:bg-[#A83200] text-white cursor-pointer transition shadow-xs"
+                >
+                  ยืนยันลบชื่อ
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Edit Active Section Modal */}
+      <AnimatePresence>
+        {showEditSectionModal && (
+          <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-natural-card rounded-2xl p-6 shadow-xl max-w-md w-full relative space-y-4 border border-natural-border text-left font-sans"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-natural-border">
+                <h4 className="font-extrabold text-natural-text text-sm md:text-base">แก้ไขข้อมูลระดับห้องเรียน</h4>
+                <button
+                  type="button"
+                  onClick={() => setShowEditSectionModal(false)}
+                  className="text-natural-text-light hover:text-natural-text p-1 rounded-lg hover:bg-[#EDEBE4]/60 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSection} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-natural-text-light">ระดับชั้นปี:</label>
+                  <select
+                    value={editSectionGrade}
+                    onChange={(e) => setEditSectionGrade(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-natural-border bg-natural-bg text-natural-text text-xs md:text-sm focus:outline-none focus:border-natural-primary"
+                  >
+                    <option value="ประถมศึกษาปีที่ 1">ประถมศึกษาปีที่ 1</option>
+                    <option value="ประถมศึกษาปีที่ 2">ประถมศึกษาปีที่ 2</option>
+                    <option value="ประถมศึกษาปีที่ 3">ประถมศึกษาปีที่ 3</option>
+                    <option value="ประถมศึกษาปีที่ 4">ประถมศึกษาปีที่ 4</option>
+                    <option value="ประถมศึกษาปีที่ 5">ประถมศึกษาปีที่ 5</option>
+                    <option value="ประถมศึกษาปีที่ 6">ประถมศึกษาปีที่ 6</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-natural-text-light">ชื่อห้องเรียน / บัญชีรายชื่อ:</label>
+                  <input
+                    type="text"
+                    required
+                    value={editSectionNameText}
+                    onChange={(e) => setEditSectionNameText(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-natural-border bg-natural-bg text-natural-text text-xs md:text-sm focus:outline-none focus:border-natural-primary"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-natural-text-light">ชื่อ-สกุลครูที่ปรึกษาประจำชั้น:</label>
+                  <input
+                    type="text"
+                    required
+                    value={editSectionTeacher}
+                    onChange={(e) => setEditSectionTeacher(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-natural-border bg-natural-bg text-natural-text text-xs md:text-sm focus:outline-none focus:border-natural-primary"
+                  />
+                </div>
+
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditSectionModal(false)}
+                    className="flex-1 py-2 text-xs font-bold rounded-xl border border-natural-border text-natural-text-light hover:bg-[#EDEBE4]/40 transition cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 text-xs font-bold rounded-xl bg-natural-primary hover:bg-[#4F7942] text-white transition cursor-pointer shadow-xs"
+                  >
+                    บันทึกห้องเรียน
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

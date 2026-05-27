@@ -268,7 +268,7 @@ export default function DashboardView({
                   >
                     <div>
                       <span className="font-bold text-natural-text block text-xs">
-                        ด.ช./ด.ญ. {stu.first_name} {stu.last_name}
+                        {stu.first_name} {stu.last_name}
                       </span>
                       <span className="text-natural-text-light text-2xs block mt-0.5 font-mono">
                         ID: {stu.student_id} | {stu.grade_level} room: {sections.find(s => s.section_id === stu.section_id)?.section_name}

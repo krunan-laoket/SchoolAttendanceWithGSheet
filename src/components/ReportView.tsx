@@ -5,8 +5,9 @@
 
 import React, { useState } from 'react';
 import { Section, Student, AttendanceRecord, ReportRecord, Settings } from '../types';
-import { FileSpreadsheet, Download, FileText, Printer, BarChart2, TrendingUp, Calendar, AlertCircle } from 'lucide-react';
+import { FileSpreadsheet, Download, FileText, Printer, BarChart2, TrendingUp, Calendar, AlertCircle, Cloud } from 'lucide-react';
 import { motion } from 'motion/react';
+import { dbService } from '../db';
 
 interface Props {
   sections: Section[];
@@ -14,6 +15,7 @@ interface Props {
   attendanceRecords: AttendanceRecord[];
   settings: Settings;
   onAddToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+  isSandbox?: boolean;
 }
 
 export default function ReportView({
@@ -22,8 +24,52 @@ export default function ReportView({
   attendanceRecords,
   settings,
   onAddToast,
+  isSandbox = false,
 }: Props) {
   const [reportPeriod, setReportPeriod] = useState<'weekly' | 'monthly'>('weekly');
+  const [syncingReports, setSyncingReports] = useState(false);
+
+  const handleSyncReportsToGoogleSheets = async () => {
+    const sheetsUrl = dbService.getSheetsUrl();
+    if (!sheetsUrl) {
+      onAddToast('⚠️ ไม่มีการเชื่อมต่อ Google Sheets กรุณากรอก URL และเชื่อมโยงที่แท็บ Google Sheets ก่อน', 'error');
+      return;
+    }
+
+    setSyncingReports(true);
+    onAddToast('🔄 กำลังปั้นคำนวณสถิติรายห้องและบันทึกประวัติลง Google Sheets...', 'info');
+
+    try {
+      const generatedDate = new Date().toISOString().split('T')[0];
+      const periodStr = `สะสม (${reportPeriod === 'weekly' ? 'รายสัปดาห์' : 'รายเดือน'}) ณ ${generatedDate}`;
+
+      const reportRecords: ReportRecord[] = printableReportsSum.map((sec) => {
+        return {
+          report_id: `REP-${sec.section_id}-${reportPeriod}-${generatedDate.replace(/-/g, '')}`,
+          period: periodStr,
+          section_id: sec.section_id,
+          present_count: sec.present,
+          absent_count: sec.absent,
+          late_count: sec.late,
+          excused_count: sec.excused,
+          attendance_rate: sec.rate,
+          generated_at: new Date().toISOString()
+        };
+      });
+
+      const res = await dbService.syncReportsToSheets(reportRecords);
+      if (res.success) {
+        onAddToast(res.message, 'success');
+      } else {
+        onAddToast(res.message, 'error');
+      }
+    } catch (err: any) {
+      console.error("Save reports error:", err);
+      onAddToast(`บันทึกรายงานขัดข้อง: ${err.message}`, 'error');
+    } finally {
+      setSyncingReports(false);
+    }
+  };
 
   const activeStudents = students.filter((s) => s.active);
 
@@ -149,6 +195,26 @@ export default function ReportView({
             <Download className="w-4.5 h-4.5" />
             <span>ส่งออกรายงาน Sheets (CSV)</span>
           </button>
+
+          {/* Cloud Sync Reports button */}
+          {!isSandbox && (
+            <button
+              onClick={handleSyncReportsToGoogleSheets}
+              disabled={syncingReports}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs border ${
+                syncingReports 
+                  ? 'bg-slate-300 border-slate-300 text-slate-500 cursor-not-allowed' 
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600'
+              }`}
+            >
+              {syncingReports ? (
+                <span className="w-3.5 h-3.5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></span>
+              ) : (
+                <Cloud className="w-4.5 h-4.5" />
+              )}
+              <span>บันทึกส่งออกสถิติลง Google Sheets (คลาวด์)</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -21,13 +21,17 @@ import {
 } from 'lucide-react';
 import { dbService } from '../db';
 import { motion } from 'motion/react';
+import { db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { User } from 'firebase/auth';
 
 interface Props {
   onAddToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   onRefreshAllData: () => void;
+  user: User | null;
 }
 
-export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData }: Props) {
+export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData, user }: Props) {
   const [activeTab, setActiveTab] = useState<'info' | 'script' | 'logs'>('info');
   const [copied, setCopied] = useState(false);
   const [sheetsUrl, setSheetsUrl] = useState('');
@@ -49,15 +53,35 @@ export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData }:
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSaveUrl = () => {
+  const handleSaveUrl = async () => {
     const trimmed = sheetsUrl.trim();
     if (trimmed && !trimmed.startsWith('https://script.google.com/')) {
       onAddToast('URL ไม่ถูกต้อง (เว็บแอปสคริปต์ Google ต้องขึ้นต้นด้วย https://script.google.com/)', 'error');
       return;
     }
 
+    if (!trimmed) {
+      // Clear all synced data and reset back to beautiful default mockup local sandbox dataset
+      dbService.resetDB();
+      onAddToast('ล้างการเชื่อมเชื่อมต่อนอกเรียบร้อยแล้ว กู้คืนฐานข้อมูลและสลับสู่โหมด Sandbox ท้องถิ่นสำเร็จ', 'success');
+    } else {
+      onAddToast('บันทึกที่อยู่ตัวเชื่อมแผ่นงานเรียบร้อย!', 'success');
+    }
+
     dbService.setSheetsUrl(trimmed);
-    onAddToast(trimmed ? 'บันทึกที่อยู่ตัวเชื่อมแผ่นงานเรียบร้อย!' : 'ล้างการเชื่อมเชื่อมต่อนอกเรียบร้อยแล้ว กลับเข้าสู่โหมด Sandbox ท้องถิ่น', 'success');
+    
+    if (user) {
+      try {
+        const docRef = doc(db, 'users', user.uid);
+        await setDoc(docRef, { sheetsUrl: trimmed });
+        if (trimmed) {
+          onAddToast('☁️ สำรองข้อมูลตัวเชื่อมนี้ลง Firestore คลาวด์เสร็จสมบูรณ์', 'success');
+        }
+      } catch (err: any) {
+        console.error("Firestore setDoc error:", err);
+      }
+    }
+    
     onRefreshAllData();
   };
 
@@ -75,6 +99,14 @@ export default function SheetsIntegrationPanel({ onAddToast, onRefreshAllData }:
     try {
       // Save the url first
       dbService.setSheetsUrl(trimmed);
+      if (user) {
+        try {
+          const docRef = doc(db, 'users', user.uid);
+          await setDoc(docRef, { sheetsUrl: trimmed });
+        } catch (err: any) {
+          console.error("Firestore setDoc on sync error:", err);
+        }
+      }
       
       const res = await dbService.syncFromSheets(trimmed);
       if (res.success) {
@@ -428,6 +460,63 @@ function doPost(e) {
       
       appendOrUpdateSection(sectionsSheet, section);
       responseData = { message: "บันทึกข้อมูลระดับห้อองเรียนสำเร็จ", section };
+      
+    } else if (action === "update_settings") {
+      const settings = postData.settings;
+      const settingsSheet = sheetDb.getSheetByName("Settings");
+      if (settingsSheet) {
+        const Headers = ["school_name", "academic_year", "default_status", "low_attendance_threshold"];
+        const rowValues = Headers.map(column => {
+          if (settings[column] !== undefined) return settings[column];
+          return "";
+        });
+        if (settingsSheet.getLastRow() < 2) {
+          settingsSheet.appendRow(rowValues);
+        } else {
+          settingsSheet.getRange(2, 1, 1, Headers.length).setValues([rowValues]);
+        }
+        responseData = { message: "บันทึกข้อมูลการตั้งค่าลง Google Sheets สำเร็จ", settings };
+      }
+      
+    } else if (action === "add_reports") {
+      const reports = postData.reports;
+      const reportsSheet = sheetDb.getSheetByName("Reports");
+      if (reportsSheet && Array.isArray(reports)) {
+        reports.forEach(rep => {
+          appendOrUpdateReport(reportsSheet, rep);
+        });
+        responseData = { message: "บันทึกสรุปรายงานสถิติมิติต่อเนื่องลง Google Sheets สำเร็จ", count: reports.length };
+      }
+      
+    } else if (action === "reset_database") {
+      const payload = postData.payload;
+      
+      initializeSheetWithHeadersAndData(sheetDb, "Sections", 
+        ["section_id", "grade_level", "section_name", "teacher_name", "student_count", "active"], 
+        payload.sections
+      );
+      
+      initializeSheetWithHeadersAndData(sheetDb, "Students", 
+        ["student_id", "first_name", "last_name", "section_id", "grade_level", "status_today", "attendance_rate", "last_updated", "notes", "active"], 
+        payload.students
+      );
+      
+      initializeSheetWithHeadersAndData(sheetDb, "Attendance", 
+        ["attendance_id", "date", "student_id", "section_id", "status", "updated_by", "updated_at", "note"], 
+        payload.attendance
+      );
+      
+      initializeSheetWithHeadersAndData(sheetDb, "Reports", 
+        ["report_id", "period", "section_id", "present_count", "absent_count", "late_count", "excused_count", "attendance_rate", "generated_at"], 
+        payload.reports || []
+      );
+      
+      initializeSheetWithHeadersAndData(sheetDb, "Settings", 
+        ["school_name", "academic_year", "default_status", "low_attendance_threshold"], 
+        [payload.settings]
+      );
+      
+      responseData = { message: "รีเซ็ตและเตรียมโครงสร้างพร้อมข้อมูลตั้งต้นลง Google Sheets ทุกหน้าสำเร็จแล้ว!" };
     }
     
     return ContentService.createTextOutput(JSON.stringify({ success: true, data: responseData }))
@@ -573,6 +662,50 @@ function appendOrUpdateSection(sheet, section) {
     sheet.getRange(foundRowIdx, 1, 1, rowValues.length).setValues([rowValues]);
   } else {
     sheet.appendRow(rowValues);
+  }
+}
+
+function appendOrUpdateReport(sheet, report) {
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idIdx = headers.indexOf("report_id");
+  
+  let foundRowIdx = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idIdx].toString() === report.report_id.toString()) {
+      foundRowIdx = i + 1;
+      break;
+    }
+  }
+  
+  const rowValues = headers.map(column => {
+    if (report[column] !== undefined) return report[column];
+    return "";
+  });
+  
+  if (foundRowIdx > -1) {
+    sheet.getRange(foundRowIdx, 1, 1, rowValues.length).setValues([rowValues]);
+  } else {
+    sheet.appendRow(rowValues);
+  }
+}
+
+function initializeSheetWithHeadersAndData(sheetDb, sheetName, headers, dArray) {
+  let sheet = sheetDb.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = sheetDb.insertSheet(sheetName);
+  } else {
+    sheet.clear();
+  }
+  sheet.appendRow(headers);
+  if (dArray && dArray.length > 0) {
+    const rows = dArray.map(item => {
+      return headers.map(column => {
+        if (item[column] !== undefined) return item[column];
+        return "";
+      });
+    });
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   }
 }
 `;

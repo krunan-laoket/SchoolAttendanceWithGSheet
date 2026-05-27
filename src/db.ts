@@ -19,103 +19,30 @@ export const STORAGE_KEYS = {
 // Help generate unique IDs
 const genId = (prefix: string) => `${prefix}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
-// Mock Thai student names and properties for primary school
-const MOCK_SECTIONS: Section[] = [
-  { section_id: 'SEC-A1', grade_level: 'ประถมศึกษาปีที่ 1', section_name: 'ห้อง 1/1', teacher_name: 'ครูสมศรี ใจดี', student_count: 8, active: true },
-  { section_id: 'SEC-A2', grade_level: 'ประถมศึกษาปีที่ 1', section_name: 'ห้อง 1/2', teacher_name: 'ครูสุรพล เก่งกล้า', student_count: 6, active: true },
-  { section_id: 'SEC-B1', grade_level: 'ประถมศึกษาปีที่ 2', section_name: 'ห้อง 2/1', teacher_name: 'ครูวิภา พรหมมา', student_count: 6, active: true },
-];
-
-const MOCK_STUDENTS: Student[] = [
-  // Section 1/1 (SEC-A1)
-  { student_id: 'STU-101', first_name: 'พิชญุตม์', last_name: 'เมธาอัครเดช', section_id: 'SEC-A1', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 96.0, last_updated: '2026-05-25T16:00:00.000Z', notes: 'แพ้ถั่วลิสงรุนแรง', active: true },
-  { student_id: 'STU-102', first_name: 'ณิชชา', last_name: 'ปัญญาวงศ์', section_id: 'SEC-A1', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 100.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-103', first_name: 'กิตติพศ', last_name: 'ศรีสว่าง', section_id: 'SEC-A1', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 88.0, last_updated: '2026-05-25T16:00:00.000Z', notes: 'รถรับส่งชอบมาสาย', active: true },
-  { student_id: 'STU-104', first_name: 'ชัญญา', last_name: 'เรืองโรจน์', section_id: 'SEC-A1', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 76.0, last_updated: '2026-05-25T16:00:00.000Z', notes: 'สุขภาพไม่ค่อยแข็งแรง คลื่นไส้ง่าย', active: true },
-  { student_id: 'STU-105', first_name: 'ปภังกร', last_name: 'สุวรรณศรี', section_id: 'SEC-A1', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 92.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-106', first_name: 'รัญชิดา', last_name: 'เกียรติไพบูลย์', section_id: 'SEC-A1', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 100.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-107', first_name: 'พลสิทธิ์', last_name: 'ทองอำไพ', section_id: 'SEC-A1', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 96.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-108', first_name: 'ธัญลักษณ์', last_name: 'ดีเลิศ', section_id: 'SEC-A1', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 100.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-
-  // Section 1/2 (SEC-A2)
-  { student_id: 'STU-201', first_name: 'คุณากร', last_name: 'พุ่มแก้ว', section_id: 'SEC-A2', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 91.6, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-202', first_name: 'อภิสรา', last_name: 'วงศ์ตระกูล', section_id: 'SEC-A2', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 100.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-203', first_name: 'จิรภัทร', last_name: 'บุญเหลือ', section_id: 'SEC-A2', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 83.3, last_updated: '2026-05-25T16:00:00.000Z', notes: 'ผู้ปกครองต้องทำงานกะกลางคืน', active: true },
-  { student_id: 'STU-204', first_name: 'แพรวพรรณ', last_name: 'อนันต์ชัย', section_id: 'SEC-A2', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 95.8, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-205', first_name: 'นนทพัทธ์', last_name: 'แสงเงิน', section_id: 'SEC-A2', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 100.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-206', first_name: 'กรวรรณ', last_name: 'รักษ์วงศา', section_id: 'SEC-A2', grade_level: 'ประถมศึกษาปีที่ 1', status_today: '', attendance_rate: 91.6, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-
-  // Section 2/1 (SEC-B1)
-  { student_id: 'STU-301', first_name: 'วรินทร', last_name: 'มีสีสรร', section_id: 'SEC-B1', grade_level: 'ประถมศึกษาปีที่ 2', status_today: '', attendance_rate: 100.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-302', first_name: 'นลิน', last_name: 'ฉัตรชัยเวช', section_id: 'SEC-B1', grade_level: 'ประถมศึกษาปีที่ 2', status_today: '', attendance_rate: 95.8, last_updated: '2026-05-25T16:00:00.000Z', notes: 'สายตาสั้น ต้องนั่งหน้าห้อง', active: true },
-  { student_id: 'STU-303', first_name: 'จิรายุ', last_name: 'นพคุณ', section_id: 'SEC-B1', grade_level: 'ประถมศึกษาปีที่ 2', status_today: '', attendance_rate: 79.1, last_updated: '2026-05-25T16:00:00.000Z', notes: 'มีปัญหาหูอักเสบเรื้อรัง', active: true },
-  { student_id: 'STU-304', first_name: 'เขมิกา', last_name: 'ประเสริฐสุข', section_id: 'SEC-B1', grade_level: 'ประถมศึกษาปีที่ 2', status_today: '', attendance_rate: 100.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-305', first_name: 'พงศกร', last_name: 'แก้วสมพร', section_id: 'SEC-B1', grade_level: 'ประถมศึกษาปีที่ 2', status_today: '', attendance_rate: 87.5, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-  { student_id: 'STU-306', first_name: 'กรวิภา', last_name: 'ไชยสิทธิ์', section_id: 'SEC-B1', grade_level: 'ประถมศึกษาปีที่ 2', status_today: '', attendance_rate: 100.0, last_updated: '2026-05-25T16:00:00.000Z', notes: '', active: true },
-];
-
-const MOCK_SETTINGS: Settings = {
-  school_name: 'โรงเรียนอนุบาลบ้านรักเรียนประถมศึกษา',
-  academic_year: '2569 (2026)',
+// Default settings for the primary school setup when no cloud settings exist
+const DEFAULT_SETTINGS: Settings = {
+  school_name: '',
+  academic_year: '2569',
   default_status: 'Present',
-  low_attendance_threshold: 85,
+  low_attendance_threshold: 80,
 };
 
-// Generate 5 days of history for each student
-const generateMockAttendanceHistory = (): AttendanceRecord[] => {
-  const dates = ['2026-05-18', '2026-05-19', '2026-05-20', '2026-05-21', '2026-05-22', '2026-05-25'];
-  const records: AttendanceRecord[] = [];
+const MOCK_SECTIONS: Section[] = [];
+const MOCK_STUDENTS: Student[] = [];
 
-  MOCK_STUDENTS.forEach((student) => {
-    dates.forEach((date) => {
-      // Determine random status based on student rating to keep it realistic
-      let status: AttendanceStatus = 'Present';
-      const rand = Math.random() * 100;
-
-      if (student.student_id === 'STU-104') { // Low att
-        if (rand < 65) status = 'Present';
-        else if (rand < 85) status = 'Absent';
-        else if (rand < 95) status = 'Late';
-        else status = 'Excused';
-      } else if (student.student_id === 'STU-303') { // Low att
-        if (rand < 70) status = 'Present';
-        else if (rand < 88) status = 'Absent';
-        else status = 'Late';
-      } else { // Standard high att
-        if (rand < 93) status = 'Present';
-        else if (rand < 96) status = 'Late';
-        else if (rand < 98) status = 'Excused';
-        else status = 'Absent';
-      }
-
-      records.push({
-        attendance_id: `ATT-${student.student_id}-${date.replace(/-/g, '')}`,
-        date,
-        student_id: student.student_id,
-        section_id: student.section_id,
-        status,
-        updated_by: 'ระบบประมวลผล',
-        updated_at: `${date}T08:15:00.000Z`,
-        note: status === 'Excused' ? 'แจ้งลาป่วยผ่านผู้ปกครอง' : status === 'Late' && Math.random() > 0.5 ? 'รถติด' : undefined,
-      });
-    });
-  });
-
-  return records;
-};
-
-// Internal cache state
+// Internal cache state (in-memory only to prevent local stale cache overriding Google Sheets)
 let sections: Section[] = [];
 let students: Student[] = [];
 let attendance: AttendanceRecord[] = [];
 let reports: ReportRecord[] = [];
-let settings: Settings = MOCK_SETTINGS;
+let settings: Settings = { ...DEFAULT_SETTINGS };
 let logs: DBLogEntry[] = [];
 const undoStack: UndoAction[] = [];
 
-// Save to localStorage
+// Save to localStorage (Made empty no-op to disable local record caching/persistence pollution)
 const saveToStorage = (key: string, data: any) => {
-  localStorage.setItem(key, JSON.stringify(data));
+  // Local storage caching disabled according to user requirements.
+  // This ensures Google Sheets data is always the single source of truth.
 };
 
 // Append to operations logs
@@ -129,45 +56,19 @@ const addLog = (action: DBLogEntry['action'], targetTable: DBLogEntry['targetTab
   };
   logs.unshift(newLog);
   if (logs.length > 100) logs.pop(); // limit size
-  saveToStorage(STORAGE_KEYS.LOGS, logs);
 };
 
 // Initialize database
 export const initDB = (forceReset = false) => {
-  const cachedSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-  const cachedSections = localStorage.getItem(STORAGE_KEYS.SECTIONS);
-  const cachedStudents = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-  const cachedAttendance = localStorage.getItem(STORAGE_KEYS.ATTENDANCE);
-  const cachedReports = localStorage.getItem(STORAGE_KEYS.REPORTS);
-  const cachedLogs = localStorage.getItem(STORAGE_KEYS.LOGS);
-
-  if (forceReset || !cachedSettings || !cachedSections || !cachedStudents) {
-    // Fresh seed
-    settings = MOCK_SETTINGS;
-    sections = [...MOCK_SECTIONS];
-    students = [...MOCK_STUDENTS];
-    attendance = generateMockAttendanceHistory();
+  if (forceReset || (sections.length === 0 && students.length === 0 && logs.length === 0)) {
+    settings = { ...DEFAULT_SETTINGS };
+    sections = [];
+    students = [];
+    attendance = [];
     reports = [];
     logs = [];
 
-    // Recalculate historical rates
-    recalculateAllRates();
-
-    saveToStorage(STORAGE_KEYS.SETTINGS, settings);
-    saveToStorage(STORAGE_KEYS.SECTIONS, sections);
-    saveToStorage(STORAGE_KEYS.STUDENTS, students);
-    saveToStorage(STORAGE_KEYS.ATTENDANCE, attendance);
-    saveToStorage(STORAGE_KEYS.REPORTS, reports);
-    saveToStorage(STORAGE_KEYS.LOGS, logs);
-
-    addLog('CREATE', 'Settings', 'เริ่มต้นระบบและโหลดฐานข้อมูลจำลอง (Sheet: Settings, Sections, Students, Attendance) สำเร็จ');
-  } else {
-    settings = JSON.parse(cachedSettings);
-    sections = JSON.parse(cachedSections);
-    students = JSON.parse(cachedStudents);
-    attendance = JSON.parse(cachedAttendance);
-    reports = JSON.parse(cachedReports || '[]');
-    logs = JSON.parse(cachedLogs || '[]');
+    addLog('CREATE', 'Settings', 'เริ่มต้นระบบฐานข้อมูลที่สะอาดและไม่มีข้อมูลจำลอง (โหมดกรอกข้อมูลใหม่ทั้งหมด)');
   }
 };
 
@@ -592,6 +493,10 @@ export const dbService = {
   },
 
   // ATTENDANCE DAILY RECORDING
+  getAttendanceRecords: (): AttendanceRecord[] => {
+    return attendance;
+  },
+
   getAttendanceForDateAndSection: (date: string, sectionId: string): AttendanceRecord[] => {
     return attendance.filter((r) => r.date === date && r.section_id === sectionId);
   },
@@ -825,14 +730,149 @@ export const dbService = {
     return settings;
   },
 
-  updateSettings: (newSettings: Settings): Settings => {
+  updateSettings: async (newSettings: Settings): Promise<{ success: boolean; message: string }> => {
     settings = { ...newSettings };
     saveToStorage(STORAGE_KEYS.SETTINGS, settings);
     addLog('UPDATE', 'Settings', `อัปเดตการตั้งค่าระบบ: ปีการศึกษา ${settings.academic_year}, โรงเรียน: ${settings.school_name}`);
-    return settings;
+    
+    // Sync settings to Google Sheets if configured
+    const sheetsUrl = getSheetsUrl();
+    if (sheetsUrl) {
+      try {
+        const response = await fetch(sheetsUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'update_settings',
+            settings: newSettings
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP Status ${response.status}`);
+        }
+        
+        const resData = await response.json();
+        if (resData.success) {
+          addLog('SYNC', 'Settings', `ปรับเวลาตั้งค่าระบบและส่งข้อมูลลงแผ่นงาน Google Sheets สำเร็จ`);
+          return { success: true, message: 'ปรับแต่งการตั้งค่าระบบพร้อมส่งค่าไปยัง Google Sheets สำเร็จเรียบร้อย!' };
+        } else {
+          throw new Error(resData.error || 'แอปสคริปต์ส่งคืนข้อผิดพลาด');
+        }
+      } catch (err: any) {
+        console.error("Sheets update_settings sync failed:", err);
+        addLog('SYNC', 'Settings', `อัปเดต Google Sheets ล้มเหลว: ${err.message}`);
+        return {
+          success: false,
+          message: `บันทึกการตั้งค่าภายในแอปสำเร็จ แต่ไม่สามารถส่งข้อมูลไปปรับปรุงบนหน้าเว็บชีตได้ (ข้อผิดพลาด: ${err.message}) กรุณาเช็กสิทธิ์และโค้ดสคริปต์ในคู่มือปรับแต่ง`
+        };
+      }
+    }
+
+    return { success: true, message: 'อัปเดตการตั้งค่าระบบภายในบราวเซอร์ของคุณสำเร็จเรียบร้อยแล้ว!' };
+  },
+
+  syncReportsToSheets: async (reportRecords: ReportRecord[]): Promise<{ success: boolean; message: string }> => {
+    // Save to local cache first
+    reportRecords.forEach(rec => {
+      // Avoid inserting duplicates locally
+      const existingIdx = reports.findIndex(r => r.report_id === rec.report_id);
+      if (existingIdx > -1) {
+        reports[existingIdx] = rec;
+      } else {
+        reports.unshift(rec);
+      }
+    });
+    if (reports.length > 100) {
+      reports = reports.slice(0, 100);
+    }
+    saveToStorage(STORAGE_KEYS.REPORTS, reports);
+
+    const sheetsUrl = getSheetsUrl();
+    if (sheetsUrl) {
+      try {
+        const response = await fetch(sheetsUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'add_reports',
+            reports: reportRecords
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP Status ${response.status}`);
+        }
+        
+        const resData = await response.json();
+        if (resData.success) {
+          addLog('SYNC', 'Reports', `ส่งยอดรายงานสถิติสะสม ${reportRecords.length} ตารางเข้า Google Sheets สำเร็จ`);
+          return { success: true, message: 'บันทึกรายงานข้อมูลและเชื่อมสถิติมิติห้องเรียนลง Google Sheets ดิจิทัลเรียบร้อย!' };
+        } else {
+          throw new Error(resData.error || 'แอปสคริปต์ส่งคืนข้อผิดพลาด');
+        }
+      } catch (err: any) {
+        console.error("Sheets syncReportsToSheets sync failed:", err);
+        addLog('SYNC', 'Reports', `อัปโหลดรายงานล้มเหลว: ${err.message}`);
+        return {
+          success: false,
+          message: `ไม่สามารถเขียนประวัติสรุปลง Google Sheets ได้ (ข้อผิดพลาด: ${err.message})`
+        };
+      }
+    }
+    return { success: true, message: 'บันทึกสรุปตัวเลขสะสมลงฐานข้อมูลจำลองเบราว์เซอร์สำเร็จ เรียบร้อยแล้ว!' };
   },
 
   resetDB: () => {
     initDB(true);
+  },
+
+  resetDBAndSync: async (): Promise<{ success: boolean; message: string }> => {
+    // 1. Reset local cache to defaults
+    initDB(true);
+    
+    // 2. If sheetsUrl is configured, send the seed data to Google Sheets to sync-reset it too!
+    const sheetsUrl = getSheetsUrl();
+    if (sheetsUrl) {
+      try {
+        const payload = {
+          sections: sections,
+          students: students,
+          attendance: attendance,
+          reports: reports,
+          settings: settings
+        };
+        
+        const response = await fetch(sheetsUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'reset_database',
+            payload: payload
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP Status ${response.status}`);
+        }
+        
+        const resData = await response.json();
+        if (resData.success) {
+          addLog('SYNC', 'Settings', 'รีเซ็ตและส่งต่อตารางตั้งต้นลง Google Sheets สำเร็จแล้ว (All sheets initialized)');
+          return { success: true, message: 'รีเซ็ตข้อมูลทั้งในระบบ และจัดเตรียมตารางเริ่มต้นลงบน Google Sheets เรียบร้อยแล้ว!' };
+        } else {
+          throw new Error(resData.error || 'แอปสคริปต์ส่งคืนข้อผิดพลาด');
+        }
+      } catch (err: any) {
+        console.error("Failed to reset remote sheet:", err);
+        addLog('SYNC', 'Settings', `รีเซ็ต Google Sheets ไม่สำเร็จ: ${err.message}`);
+        return { 
+          success: true, // locally still succeeded
+          message: `รีเซ็ตข้อมูลจำลองห้องเรียนสำเร็จแล้ว แต่ไม่สามารถส่งข้อมูลรีเซ็ตไปยัง Google Sheets ได้ (ข้อผิดพลาด: ${err.message}) คุณครูยังสามารถตรวจเช็กอินเทอร์เน็ต สิทธิ์เว็บแอป และกดประสานข้อมูลอีกครั้งได้` 
+        };
+      }
+    }
+    
+    return { success: true, message: 'ทำการรีเซ็ตข้อมูลจำลองของเครื่องสำเร็จ' };
   }
 };

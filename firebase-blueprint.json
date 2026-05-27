@@ -1,0 +1,22 @@
+{
+  "entities": {
+    "UserSetting": {
+      "title": "UserSetting",
+      "description": "User profile settings including Google Sheets URL integration",
+      "type": "object",
+      "properties": {
+        "sheetsUrl": {
+          "type": "string",
+          "description": "Google Apps Script Web App URL for Sheets backup syncing"
+        }
+      },
+      "required": ["sheetsUrl"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserSetting",
+      "description": "Top-level settings for each user containing their sheetsUrl integration link"
+    }
+  }
+}
